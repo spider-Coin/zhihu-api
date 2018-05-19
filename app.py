@@ -7,6 +7,7 @@ from flask_pymongo import PyMongo
 from flask_cors import CORS
 import pymongo
 import logging
+import json
 
 
 app = Flask(__name__)
@@ -18,31 +19,35 @@ mongo = PyMongo(app)
 cache = Cache(app, config={'CACHE_TYPE': 'redis'})
 
 
-parser1 = reqparse.RequestParser()
-parser1.add_argument('text', location='json', required=True)
+parser = reqparse.RequestParser()
+parser.add_argument('url', location='json', required=True)
+parser.add_argument('data', location='json', required=True)
 
 
-class Inlian(Resource):
+class Task(Resource):
     def post(self):
-        args = parser1.parse_args()
-        text = args['text']
-        text = text.strip()
+        args = parser.parse_args()
+        data = json.loads(args.data)
+        save2db(data, args.url)
 
-        def run(text, nonce=None):
-            try:
-                tx = playGame(text, nonce=nonce)
-                return {'tx': tx, 'ok': 1}
-            except ValueError:
-                nonce = int(getredis())+1
-                return run(text, nonce)
-            except:
-                logging.exception('...')
-            return {'msg': '系统错误,请重试', 'ok': 0}
-        return run(text)
+    def get(self):
+        return {'url': ['https://www.zhihu.com/api/v4/members/pa-chong-21/activities?limit=7&after_id=1525849360&desktop=True'],
+                'status': 'ok',
+                'ifNext': False}
 
 
-api.add_resource(Inlian, '/write')
+def save2db(data, url):
+    if isinstance(data, list):
+        for i in data:
+            i['source_url'] = url
+            mongo.db.user.insert_one(i)
+    else:
+        data['source_url'] = url
+        mongo.db.user.insert_one(i)
+
+
+api.add_resource(Task, '/task')
 
 
 if __name__ == '__main__':
-    app.run(debug=False, port=5000, threaded=True)
+    app.run(debug=False, host='0.0.0.0', port=5000, threaded=False)

@@ -12,7 +12,9 @@ import json
 
 app = Flask(__name__)
 CORS(app, origins=["https://togetthere.cn/",
-                   "http://localhost:8080"])
+                   "http://localhost:8888",
+                   "http://192.168.0.108:8888",
+                   ])
 app.config.from_pyfile('config.py')
 api = Api(app)
 mongo = PyMongo(app)
@@ -31,9 +33,15 @@ class Task(Resource):
         save2db(data, args.url)
 
     def get(self):
-        return {'url': ['https://www.zhihu.com/api/v4/members/pa-chong-21/activities?limit=7&after_id=1525849360&desktop=True'],
+        return {'url': 'https://www.zhihu.com/api/v4/members/pa-chong-21/activities',
                 'status': 'ok',
+                'lastTime': 1526560366,
                 'ifNext': False}
+
+
+class Feed(Resource):
+    def get(self, id):
+        return [i['target'] for i in mongo.db.feed.find({'verb': 'QUESTION_FOLLOW'}).limit(10)]
 
 
 def save2db(data, url):
@@ -47,6 +55,7 @@ def save2db(data, url):
 
 
 api.add_resource(Task, '/task')
+api.add_resource(Feed, '/feed/<string:id>')
 
 
 if __name__ == '__main__':

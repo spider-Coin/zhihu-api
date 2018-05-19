@@ -11,10 +11,7 @@ import json
 
 
 app = Flask(__name__)
-CORS(app, origins=["https://togetthere.cn/",
-                   "http://localhost:8888",
-                   "http://192.168.0.108:8888",
-                   ])
+CORS(app, origins=["*"])
 app.config.from_pyfile('config.py')
 api = Api(app)
 mongo = PyMongo(app)

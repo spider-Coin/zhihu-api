@@ -6,10 +6,28 @@ from flask_cache import Cache
 from flask_pymongo import PyMongo
 from flask_cors import CORS
 from flask_redis import FlaskRedis
+from celery import Celery
 
 import pymongo
 import logging
 import json
+
+
+def make_celery(app):
+    celery = Celery(app.import_name, backend=app.config['CELERY_RESULT_BACKEND'],
+                    broker=app.config['CELERY_BROKER_URL'])
+    celery.conf.update(app.config)
+    TaskBase = celery.Task
+
+    class ContextTask(TaskBase):
+        abstract = True
+
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return TaskBase.__call__(self, *args, **kwargs)
+
+    celery.Task = ContextTask
+    return celery
 
 
 app = Flask(__name__)
@@ -19,6 +37,7 @@ api = Api(app)
 mongo = PyMongo(app)
 cache = Cache(app, config={'CACHE_TYPE': 'redis'})
 redis_store = FlaskRedis(app)
+celery = make_celery(app)
 
 
 parser = reqparse.RequestParser()
@@ -65,6 +84,19 @@ def getLastTime(url_token):
     xx = mongo.db.user.find({'actor.url_token': url_token}, {
         'created_time': 1, '_id': 0}).sort([("created_time", -1)]).limit(1)
     return xx['created_time']
+
+
+@celery.task
+def upLastime():
+    '每5分钟更新'
+    baseUrl = 'https://www.zhihu.com/api/v4/members/{}/activities'
+    c = mongo.db.user.aggregate([{"$group": {
+        "_id": {"url_token": "$actor.url_token"}, "max": {"$max": "$created_time"}
+    }}])
+    for i in c:
+        redis_store.rpush('urls', json.dumps({'status': 'ok',
+                                              'lastTime': int(i['max']), 'url': baseUrl.format(i['_id']['url_token'])
+                                              }))
 
 
 api.add_resource(Task, '/api/task')

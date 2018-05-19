@@ -54,8 +54,8 @@ def save2db(data, url):
         mongo.db.user.insert_one(i)
 
 
-api.add_resource(Task, '/task')
-api.add_resource(Feed, '/feed/<string:id>')
+api.add_resource(Task, '/api/task')
+api.add_resource(Feed, '/api/feed/<string:id>')
 
 
 if __name__ == '__main__':

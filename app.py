@@ -5,6 +5,8 @@ from flask_restful import Resource, Api, reqparse
 from flask_cache import Cache
 from flask_pymongo import PyMongo
 from flask_cors import CORS
+from flask_redis import FlaskRedis
+
 import pymongo
 import logging
 import json
@@ -16,6 +18,7 @@ app.config.from_pyfile('config.py')
 api = Api(app)
 mongo = PyMongo(app)
 cache = Cache(app, config={'CACHE_TYPE': 'redis'})
+redis_store = FlaskRedis(app)
 
 
 parser = reqparse.RequestParser()
@@ -30,10 +33,16 @@ class Task(Resource):
         save2db(data, args.url)
 
     def get(self):
-        return {'url': 'https://www.zhihu.com/api/v4/members/pa-chong-21/activities',
-                'status': 'ok',
-                'lastTime': 1526560366,
-                'ifNext': False}
+        try:
+            ret = redis_store.lpop('urls')
+            if ret:
+                ret = ret.decode('utf8')
+                return (json.loads(ret))
+
+            else:
+                return {'status': 'ok', 'url': ''}
+        except Exception as e:
+            return {'status': '', 'msg': str(e)}
 
 
 class Feed(Resource):
@@ -49,6 +58,13 @@ def save2db(data, url):
     else:
         data['source_url'] = url
         mongo.db.user.insert_one(i)
+
+
+def getLastTime(url_token):
+    # 返回某个人最新动态的时间
+    xx = mongo.db.user.find({'actor.url_token': url_token}, {
+        'created_time': 1, '_id': 0}).sort([("created_time", -1)]).limit(1)
+    return xx['created_time']
 
 
 api.add_resource(Task, '/api/task')
